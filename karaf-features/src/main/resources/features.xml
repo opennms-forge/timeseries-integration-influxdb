@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<features name="openmms-plugins-influxdb-features" xmlns="http://karaf.apache.org/xmlns/features/v1.4.0">
+
+    <feature name="opennms-plugins-influxdb" description="OpenNMS :: Plugins :: Timeseries :: InfluxDB" version="${project.version}">
+        <feature dependency="true">aries-blueprint</feature>
+        <feature dependency="true">shell</feature>
+        <feature version="${opennms.api.version}" dependency="true">opennms-integration-api</feature>
+        <feature version="${project.version}">opennms-plugins-influxdb-client</feature>
+        <bundle dependency="true">mvn:com.google.guava/guava/${guava.version}</bundle>
+        <bundle>mvn:org.opennms.plugins.timeseries/influxdb-plugin/${project.version}</bundle>
+    </feature>
+
+    <feature name="opennms-plugins-influxdb-client" version="${project.version}">
+        <bundle>mvn:org.opennms.plugin.timeseries.influxdb.wrap/influxdb-client/${project.version}</bundle>
+    </feature>
+
+</features>
