@@ -51,6 +51,8 @@ import org.opennms.integration.api.v1.timeseries.TimeSeriesStorage;
 import org.opennms.integration.api.v1.timeseries.immutables.ImmutableMetric;
 import org.opennms.integration.api.v1.timeseries.immutables.ImmutableSample;
 import org.opennms.integration.api.v1.timeseries.immutables.ImmutableTag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.InfluxDBClientFactory;
@@ -69,20 +71,12 @@ import com.influxdb.query.FluxTable;
  * - we prefix the tag key with the tag type ('intrinsic' or 'meta')
  */
 public class InfluxdbStorage implements TimeSeriesStorage {
+    private static final Logger LOG = LoggerFactory.getLogger(InfluxdbStorage.class);
 
     private InfluxDBClient influxDBClient;
 
     private final String configBucket;
     private final String configOrg;
-
-    public InfluxdbStorage() {
-        // TODO: Patrick: discuss mechanism with @Jesse which mechanism to use for the configuration
-        this(
-                System.getProperty("org.opennms.timeseries.influxdb.bucket"),
-                System.getProperty("org.opennms.timeseries.influxdb.org"),
-                System.getProperty("org.opennms.timeseries.influxdb.token"),
-                System.getProperty("org.opennms.timeseries.influxdb.url"));
-    }
 
     public InfluxdbStorage(
             String bucket,
@@ -102,6 +96,8 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                 .build();
         influxDBClient = InfluxDBClientFactory.create(options);
         // TODO Patrick: do we need to enable batch? How?
+
+        LOG.info("Successfully initialized InfluxDB client.");
     }
 
     @Override

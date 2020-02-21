@@ -9,10 +9,37 @@ It can be used in OpenNMS to store and retrieve timeseries data.
 * For testing purposes you can run: ``sudo docker run -p 9999:9999 quay.io/influxdb/influxdb:2.0.0-beta --reporting-disabled``
 
 ## Usage
-* compile: ``mvn install``
-* activation: Enable the timeseries integration layer: TODO: Patrick add link once the documentation is online
-* activate in Karaf shell: ``bundle:install -s mvn:org.opennms.plugins.timeseries.influxdb/timeseries-influxdb-plugin/1.0.0-SNAPSHOT``
-* run command to init influxdb with an organisation and bucket: ``timescale:init``
+
+Build and install the plugin into your local Maven repository using:
+```
+mvn clean install
+```
+
+From the OpenNMS Karaf shell:
+```
+feature:repo-add mvn:org.opennms.plugins.timeseries/influxdb-karaf-features/1.0.0-SNAPSHOT/xml
+feature:install opennms-plugins-influxdb
+```
+
+Initialize InfluxDB with an organization and bucket:
+```
+opennms-influxdb:init --link http://localhost:9999
+```
+
+Use the create org and bucket:
+```
+config:edit org.opennms.plugins.influxdb
+property-set bucket opennms
+property-set org opennms
+property-set token "FSuqxbAXTxgiI-6-KtYFZJZwJDfYpOOOEpgpBdOaX5zLo4MiFvWN4hWFu0kSOtQO-XnyNUWQrsqTrrdHl1BYBg=="
+property-set url http://localhost:9999
+config:update
+```
+
+Update automatically:
+```
+bundle:watch *
+```
 
 ## Links:
 * InfluxDB 2.0: https://www.influxdata.com/products/influxdb-overview/

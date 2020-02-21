@@ -1,0 +1,64 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.opennms.plugins.timeseries</groupId>
+        <artifactId>influxdb-wrap</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>org.opennms.plugin.timeseries.influxdb.wrap</groupId>
+    <artifactId>influxdb-client</artifactId>
+    <name>OpenNMS :: Plugins :: InfluxDB :: Wrap :: InfluxDB Client</name>
+    <packaging>bundle</packaging>
+
+    <build>
+        <defaultGoal>install</defaultGoal>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <artifactSet>
+                                <excludes>
+                                    <!-- <exclude>com.google.guava:guava</exclude> -->
+                                </excludes>
+                            </artifactSet>
+                            <createDependencyReducedPom>true</createDependencyReducedPom>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.felix</groupId>
+                <artifactId>maven-bundle-plugin</artifactId>
+                <extensions>true</extensions>
+                <configuration>
+                    <instructions>
+                        <Import-Package>*,javax.net,javax.net.ssl,javax.crypto,javax.crypto.spec</Import-Package>
+                        <Export-Package>
+                          com.influxdb.client;version="${project.version}",
+                          com.influxdb.client.domain;version="${project.version}",
+                          com.influxdb.client.write;version="${project.version}",
+                          com.influxdb.query;version="${project.version}",
+                          okhttp3;version="${project.version}"
+                        </Export-Package>
+                    </instructions>
+                    <unpackBundle>true</unpackBundle>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.influxdb</groupId>
+            <artifactId>influxdb-client-java</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>
