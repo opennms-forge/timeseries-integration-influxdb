@@ -15,7 +15,6 @@ import org.opennms.integration.api.v1.timeseries.Aggregation;
 import org.opennms.integration.api.v1.timeseries.Metric;
 import org.opennms.integration.api.v1.timeseries.Sample;
 import org.opennms.integration.api.v1.timeseries.StorageException;
-import org.opennms.integration.api.v1.timeseries.Tag;
 import org.opennms.integration.api.v1.timeseries.TimeSeriesFetchRequest;
 import org.opennms.integration.api.v1.timeseries.immutables.ImmutableMetric;
 import org.opennms.integration.api.v1.timeseries.immutables.ImmutableSample;
@@ -30,8 +29,8 @@ public class InfluxdbStorageIT {
 
     @Before
     public void setUp() throws IOException, InterruptedException {
-        //influxdb = new ProcessBuilder().command("docker run -p 9999:9999 quay.io/influxdb/influxdb:2.0.0-beta --reporting-disabled").start();
-        //Thread.sleep(10000); // wait for docker to start
+//        influxdb = new ProcessBuilder().command("docker run -p 9999:9999 quay.io/influxdb/influxdb:2.0.0-beta --reporting-disabled").start();
+//        Thread.sleep(10000); // wait for docker to start
         String accessToken = new InitInfluxdb().setupInflux();
         storage = new InfluxdbStorage(accessToken);
     }
@@ -49,7 +48,6 @@ public class InfluxdbStorageIT {
      */
     // @Test
     public void shouldStoreAndRetrieve() throws StorageException, InterruptedException {
-        Tag meta = new ImmutableTag("_idx2", "(snmp:1:opennms-jvm,4)");
         Metric metric = ImmutableMetric.builder()
                 .tag(Metric.MandatoryTag.unit, "unknown")
                 .tag(Metric.MandatoryTag.mtype, Metric.Mtype.gauge.name())
@@ -57,8 +55,8 @@ public class InfluxdbStorageIT {
                 .tag("resourceId", "snmp:1:opennms-jvm:org_opennms_newts_name_ring_buffer_max_size_unit=unknown")
                 .metaTag("_idx0", "(snmp,4)")
                 .metaTag("_idx1", "(snmp:1,4)")
-                .metaTag(meta)
-                .metaTag("_idx3", "(snmp:1:opennms-jvm,4)")
+                .metaTag("_idx2", "(snmp:1:opennms-jvm,4)")
+                .metaTag("_idx3", "(snmp:1:opennms-jvm:OpenNMS_Name_Notifd,4)")
 
                 .build();
         Sample sample = ImmutableSample.builder()
@@ -69,7 +67,7 @@ public class InfluxdbStorageIT {
 
         storage.store(Collections.singletonList(sample));
         Thread.sleep(5000); // wait for a bit to make sure data was saved.
-        List<Metric> metricsRetrieved = storage.getMetrics(Collections.singletonList(meta));
+        List<Metric> metricsRetrieved = storage.getMetrics(Collections.singletonList(new ImmutableTag("_idx1", "(snmp:1,4)")));
         assertEquals(1, metricsRetrieved.size());
         assertEquals(metric, metricsRetrieved.get(0));
         TimeSeriesFetchRequest request = ImmutableTimeSeriesFetchRequest.builder()

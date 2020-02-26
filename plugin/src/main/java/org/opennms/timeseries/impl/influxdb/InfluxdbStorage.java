@@ -40,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.opennms.integration.api.v1.timeseries.Metric;
@@ -54,6 +56,9 @@ import org.opennms.integration.api.v1.timeseries.immutables.ImmutableTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.InfluxDBClientFactory;
 import com.influxdb.client.InfluxDBClientOptions;
@@ -77,6 +82,16 @@ public class InfluxdbStorage implements TimeSeriesStorage {
 
     private final String configBucket;
     private final String configOrg;
+
+    private LoadingCache<String, List<Metric>> cache = CacheBuilder.newBuilder()
+            .maximumSize(1000)
+            .expireAfterWrite(60, TimeUnit.SECONDS)
+            .build(
+                    new CacheLoader<String, List<Metric>>() {
+                        public List<Metric> load(final String ignored) throws StorageException {
+                            return loadAllMetrics();
+                        }
+                    });
 
     /** Uses default values for bucket, org, url. */
     public InfluxdbStorage(final String token) {
@@ -132,7 +147,17 @@ public class InfluxdbStorage implements TimeSeriesStorage {
 
     @Override
     public List<Metric> getMetrics(Collection<Tag> tags) throws StorageException {
+        try {
+            return this.cache.get("allMetrics")
+                    .stream()
+                    .filter(metric -> containsAll(metric, tags))
+                    .collect(Collectors.toList());
+        } catch (ExecutionException e) {
+            throw new StorageException(e);
+        }
+    }
 
+    private List<Metric> loadAllMetrics() throws StorageException {
         // TODO: Patrick: The code works but is probably not efficient enough, we should optimize this query since
         // it gets way too much (redundant) data.
         // I am not sure how - the influx documentation doesn't seem to be up to date / correct:
@@ -142,21 +167,20 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                 "  |> range(start:-5y)\n" +
                 "  |> keys()";
 
-        final List<FluxTable> keys = influxDBClient.getQueryApi().query(query);
-        List<Metric> allMetrics = keys.stream()
+        return influxDBClient
+                .getQueryApi()
+                .query(query)
+                .stream()
                 .map(FluxTable::getRecords)
                 .flatMap(Collection::stream)
                 .map(FluxRecord::getValues)
-                .filter(m -> m.get("_measurement").toString().contains("resourceId"))
+                .filter(m -> m.get("_measurement") != null && m.get("_measurement").toString().contains("resourceId"))
                 .map(this::createMetricFromMap)
-                .filter(metric -> containsAll(metric, tags))
                 .distinct()
                 .collect(Collectors.toList());
-
-        return allMetrics;
     }
 
-    /** Restore the metric from the tags we get out of InfluxDb */
+        /** Restore the metric from the tags we get out of InfluxDb */
     private Metric createMetricFromMap(final Map<String, Object> map) {
         ImmutableMetric.MetricBuilder metric = ImmutableMetric.builder();
         for(Map.Entry<String, Object> entry : map.entrySet()) {
