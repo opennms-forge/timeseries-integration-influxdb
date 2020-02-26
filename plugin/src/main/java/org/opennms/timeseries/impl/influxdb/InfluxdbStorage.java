@@ -78,6 +78,11 @@ public class InfluxdbStorage implements TimeSeriesStorage {
     private final String configBucket;
     private final String configOrg;
 
+    /** Uses default values for bucket, org, url. */
+    public InfluxdbStorage(final String token) {
+        this("opennms", "opennms", token, "http://localhost:9999");
+    }
+
     public InfluxdbStorage(
             String bucket,
             String org,
@@ -133,7 +138,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
         // I am not sure how - the influx documentation doesn't seem to be up to date / correct:
         // https://www.influxdata.com/blog/schema-queries-in-ifql/
 
-        String query = "from(bucket:\"opennms\")\n" +
+        final String query = "from(bucket:\"opennms\")\n" +
                 "  |> range(start:-5y)\n" +
                 "  |> keys()";
 
@@ -144,7 +149,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                 .map(FluxRecord::getValues)
                 .filter(m -> m.get("_measurement").toString().contains("resourceId"))
                 .map(this::createMetricFromMap)
-                .filter(metric -> metric.getTags().containsAll(tags))
+                .filter(metric -> containsAll(metric, tags))
                 .distinct()
                 .collect(Collectors.toList());
 
@@ -173,6 +178,15 @@ public class InfluxdbStorage implements TimeSeriesStorage {
             return Optional.of(new ImmutableTag(key, value));
         }
         return Optional.empty();
+    }
+
+    private boolean containsAll(final Metric metric, final Collection<Tag> tags) {
+        for(Tag tag: tags) {
+            if(!metric.getTags().contains(tag) && !metric.getMetaTags().contains(tag)){
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
