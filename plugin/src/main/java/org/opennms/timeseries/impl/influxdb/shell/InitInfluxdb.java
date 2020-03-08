@@ -1,19 +1,8 @@
 package org.opennms.timeseries.impl.influxdb.shell;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.nio.file.Paths;
-import java.util.Map;
-import java.util.Properties;
-
-import javax.sql.DataSource;
-
 import org.apache.karaf.shell.api.action.Action;
 import org.apache.karaf.shell.api.action.Command;
 import org.apache.karaf.shell.api.action.Option;
-import org.apache.karaf.shell.api.action.lifecycle.Reference;
 import org.apache.karaf.shell.api.action.lifecycle.Service;
 
 import com.influxdb.client.InfluxDBClient;
@@ -27,9 +16,6 @@ import okhttp3.OkHttpClient;
 @Command(scope = "opennms-influxdb", name = "init", description = "Initializes the database tables for the Timeseries Integration Timescale Plugin.")
 @Service
 public class InitInfluxdb implements Action {
-
-    @Reference
-    private DataSource dataSource;
 
     @Option(name = "-b", aliases = {"--bucket"}, description = "Specifies which bucket to create, default: opennms.")
     private String configBucket = "opennms";
@@ -48,7 +34,11 @@ public class InitInfluxdb implements Action {
 
     @Override
     public Object execute() throws Exception {
+        setupInflux();
+        return null;
+    }
 
+    public String setupInflux() {
         OkHttpClient.Builder builder = new OkHttpClient.Builder();
         InfluxDBClientOptions options = InfluxDBClientOptions.builder()
                 .bucket(configBucket)
@@ -74,30 +64,6 @@ public class InitInfluxdb implements Action {
         System.out.println("Create account: ok");
         System.out.println("Access token is: " + response.getAuth().getToken());
         System.out.println("Enjoy!");
-
-        return null;
-    }
-
-    private static void loadOpenNMSProperties() throws FileNotFoundException, IOException {
-        // Find the opennms.properties file
-        File props = Paths.get(System.getProperty("opennms.home"), "etc", "opennms.properties").toFile();
-        if (!props.canRead()) {
-            throw new IOException("Cannot read opennms.properties file: " + props);
-        }
-
-        // Load the properties
-        try (FileInputStream fis = new FileInputStream(props)) {
-            Properties p = new Properties();
-            p.load(fis);
-
-            for (Map.Entry<Object, Object> entry : p.entrySet()) {
-                String propertyName = entry.getKey().toString();
-                Object value = entry.getValue();
-                // Only set the value of a system property if it is not already set
-                if (System.getProperty(propertyName) == null && value != null) {
-                    System.setProperty(propertyName, value.toString());
-                }
-            }
-        }
+        return response.getAuth().getToken();
     }
 }
