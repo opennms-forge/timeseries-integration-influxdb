@@ -44,9 +44,3 @@ bundle:watch *
 ## Links:
 * InfluxDB 2.0: https://www.influxdata.com/products/influxdb-overview/
 
-## Open TODOs:
-* dependencies are not correct yet, doesn't find influxdb
-
-
-
-

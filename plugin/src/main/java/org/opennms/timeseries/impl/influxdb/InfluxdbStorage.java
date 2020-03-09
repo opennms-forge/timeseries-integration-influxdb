@@ -59,9 +59,12 @@ import org.slf4j.LoggerFactory;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.influxdb.client.DeleteApi;
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.InfluxDBClientFactory;
 import com.influxdb.client.InfluxDBClientOptions;
+import com.influxdb.client.QueryApi;
+import com.influxdb.client.WriteApi;
 import com.influxdb.client.domain.DeletePredicateRequest;
 import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
@@ -78,7 +81,10 @@ import com.influxdb.query.FluxTable;
 public class InfluxdbStorage implements TimeSeriesStorage {
     private static final Logger LOG = LoggerFactory.getLogger(InfluxdbStorage.class);
 
-    private InfluxDBClient influxDBClient;
+    private final InfluxDBClient influxDBClient;
+    private final WriteApi writeApi;
+    private final QueryApi queryApi;
+    private final DeleteApi deleteApi;
 
     private final String configBucket;
     private final String configOrg;
@@ -117,7 +123,17 @@ public class InfluxdbStorage implements TimeSeriesStorage {
         influxDBClient = InfluxDBClientFactory.create(options);
         // TODO Patrick: do we need to enable batch? How?
 
+        // Fetch the APIs once during init, some of these require to be closed
+        queryApi = influxDBClient.getQueryApi();
+        writeApi = influxDBClient.getWriteApi();
+        deleteApi = influxDBClient.getDeleteApi();
+
         LOG.info("Successfully initialized InfluxDB client.");
+    }
+
+    public void destroy() {
+        writeApi.close();
+        influxDBClient.close();
     }
 
     @Override
@@ -129,7 +145,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                     .time(sample.getTime().toEpochMilli(), WritePrecision.MS);
             storeTags(point, ImmutableMetric.TagType.intrinsic, sample.getMetric().getTags());
             storeTags(point, ImmutableMetric.TagType.meta, sample.getMetric().getMetaTags());
-            influxDBClient.getWriteApi().writePoint(configBucket, configOrg, point);
+            writeApi.writePoint(configBucket, configOrg, point);
         }
     }
 
@@ -167,8 +183,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                 "  |> range(start:-5y)\n" +
                 "  |> keys()";
 
-        return influxDBClient
-                .getQueryApi()
+        return queryApi
                 .query(query)
                 .stream()
                 .map(FluxTable::getRecords)
@@ -223,7 +238,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                 " |> filter(fn:(r) => r._measurement == \"" + metricKeyToInflux(request.getMetric().getKey()) + "\")\n" +
                 " |> filter(fn: (r) => r._field == \"value\")";
                // " |> aggregateWindow(every: " + stepInSeconds +"s,fn: mean)"; // TODO: Patrick: this crashes the whole Indluxdb server
-        List<FluxTable> tables = influxDBClient.getQueryApi().query(query);
+        List<FluxTable> tables = queryApi.query(query);
 
         final List<Sample> samples = new ArrayList<>();
         for (FluxTable fluxTable : tables) {
@@ -243,6 +258,6 @@ public class InfluxdbStorage implements TimeSeriesStorage {
     @Override
     public void delete(Metric metric) throws StorageException {
         DeletePredicateRequest predicate = new DeletePredicateRequest().predicate("_measurement=\"" + metricKeyToInflux(metric.getKey()) + "\"");
-        influxDBClient.getDeleteApi().delete(predicate, configBucket, configOrg);
+        deleteApi.delete(predicate, configBucket, configOrg);
     }
 }

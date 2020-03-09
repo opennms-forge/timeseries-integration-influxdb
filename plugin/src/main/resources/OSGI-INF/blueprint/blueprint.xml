@@ -19,7 +19,7 @@
         </cm:default-properties>
     </cm:property-placeholder>
 
-    <bean id="timeSeriesStorage" class="org.opennms.timeseries.impl.influxdb.InfluxdbStorage" >
+    <bean id="timeSeriesStorage" class="org.opennms.timeseries.impl.influxdb.InfluxdbStorage" destroy-method="destroy" >
         <argument value="${bucket}" />
         <argument value="${org}" />
         <argument value="${token}" />
