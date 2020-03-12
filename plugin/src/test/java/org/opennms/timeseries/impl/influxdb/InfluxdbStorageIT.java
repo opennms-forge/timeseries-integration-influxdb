@@ -49,10 +49,8 @@ public class InfluxdbStorageIT {
     // @Test
     public void shouldStoreAndRetrieve() throws StorageException, InterruptedException {
         Metric metric = ImmutableMetric.builder()
-                .tag(Metric.MandatoryTag.unit, "unknown")
-                .tag(Metric.MandatoryTag.mtype, Metric.Mtype.gauge.name())
-                .tag("name", "NewtsRingBufMaxSize")
-                .tag("resourceId", "snmp:1:opennms-jvm:org_opennms_newts_name_ring_buffer_max_size_unit=unknown")
+                .intrinsicTag("name", "NewtsRingBufMaxSize")
+                .intrinsicTag("resourceId", "snmp:1:opennms-jvm:org_opennms_newts_name_ring_buffer_max_size_unit=unknown")
                 .metaTag("_idx0", "(snmp,4)")
                 .metaTag("_idx1", "(snmp:1,4)")
                 .metaTag("_idx2", "(snmp:1:opennms-jvm,4)")

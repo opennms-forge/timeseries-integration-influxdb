@@ -143,7 +143,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                     .measurement(metricKeyToInflux(sample.getMetric().getKey())) // make sure the measurement has only allowed characters
                     .addField("value", sample.getValue())
                     .time(sample.getTime().toEpochMilli(), WritePrecision.MS);
-            storeTags(point, ImmutableMetric.TagType.intrinsic, sample.getMetric().getTags());
+            storeTags(point, ImmutableMetric.TagType.intrinsic, sample.getMetric().getIntrinsicTags());
             storeTags(point, ImmutableMetric.TagType.meta, sample.getMetric().getMetaTags());
             writeApi.writePoint(configBucket, configOrg, point);
         }
@@ -199,7 +199,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
     private Metric createMetricFromMap(final Map<String, Object> map) {
         ImmutableMetric.MetricBuilder metric = ImmutableMetric.builder();
         for(Map.Entry<String, Object> entry : map.entrySet()) {
-            getIfMatching(ImmutableMetric.TagType.intrinsic, entry).ifPresent(metric::tag);
+            getIfMatching(ImmutableMetric.TagType.intrinsic, entry).ifPresent(metric::intrinsicTag);
             getIfMatching(ImmutableMetric.TagType.meta, entry).ifPresent(metric::metaTag);
         }
         return metric.build();
@@ -221,7 +221,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
 
     private boolean containsAll(final Metric metric, final Collection<Tag> tags) {
         for(Tag tag: tags) {
-            if(!metric.getTags().contains(tag) && !metric.getMetaTags().contains(tag)){
+            if(!metric.getIntrinsicTags().contains(tag) && !metric.getMetaTags().contains(tag)){
                 return false;
             }
         }
