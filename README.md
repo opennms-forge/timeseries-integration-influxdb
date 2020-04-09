@@ -23,18 +23,18 @@ feature:repo-add mvn:org.opennms.plugins.timeseries/influxdb-karaf-features/1.0.
 feature:install opennms-plugins-influxdb
 ```
 
-Initialize InfluxDB with an organization and bucket:
+Initialize InfluxDB with default values:
 ```
-opennms-influxdb:init --link http://localhost:9999
+opennms-influxdb:init
 ```
 
 Use the create org and bucket:
 ```
 config:edit org.opennms.plugins.influxdb
-property-set bucket opennms
-property-set org opennms
-property-set token "FSuqxbAXTxgiI-6-KtYFZJZwJDfYpOOOEpgpBdOaX5zLo4MiFvWN4hWFu0kSOtQO-XnyNUWQrsqTrrdHl1BYBg=="
-property-set url http://localhost:9999
+property-set url http://localhost:8086
+property-set database opennms
+property-set username root
+property-set password password
 config:update
 ```
 
@@ -44,6 +44,6 @@ bundle:watch *
 ```
 
 ## Links:
-* InfluxDB 1.x client: https://github.com/influxdata/influxdb-java
+* InfluxDB 1.x Java client: https://github.com/influxdata/influxdb-java
 * InfluxDB 1.x: https://www.influxdata.com/time-series-platform/
 

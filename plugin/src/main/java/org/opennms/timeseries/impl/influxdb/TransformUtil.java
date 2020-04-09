@@ -28,6 +28,12 @@
 
 package org.opennms.timeseries.impl.influxdb;
 
+import java.util.Optional;
+
+import org.opennms.integration.api.v1.timeseries.Tag;
+import org.opennms.integration.api.v1.timeseries.immutables.ImmutableMetric;
+import org.opennms.integration.api.v1.timeseries.immutables.ImmutableTag;
+
 public class TransformUtil {
 
     public static String tagValueToInflux(final String resourceId) {
@@ -43,6 +49,19 @@ public class TransformUtil {
         return tagValueToInflux(resourceId)
                 .replace("/", "-")
                 .replace("=", "-");// Influx has a problem with queries that contain a equals in a query param
+    }
+
+    public static Optional<Tag> getIfMatching(final ImmutableMetric.TagType tagType, final String rawTagKey, final String rawTagValue) {
+        // Check if the key starts with the prefix. If so it is an opennms key, if not something InfluxDb specific and
+        // we can ignore it.
+        final String prefix = tagType.name() + '_';
+
+        if(rawTagKey.startsWith(prefix)) {
+            String key = rawTagKey.substring(prefix.length());
+            String value = tagValueFromInflux(rawTagValue); // convert
+            return Optional.of(new ImmutableTag(key, value));
+        }
+        return Optional.empty();
     }
 
 }

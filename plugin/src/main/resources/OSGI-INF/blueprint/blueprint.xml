@@ -12,7 +12,7 @@
     <!-- Configuration properties -->
     <cm:property-placeholder id="influxdbPluginProperties" persistent-id="org.opennms.plugins.influxdb" update-strategy="reload">
         <cm:default-properties>
-            <cm:property name="url" value="http://localhost:9999" />
+            <cm:property name="url" value="http://localhost:8086" />
             <cm:property name="database" value="opennms" />
             <cm:property name="username" value="root" />
             <cm:property name="password" value="root" />

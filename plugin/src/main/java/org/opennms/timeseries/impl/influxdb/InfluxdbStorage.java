@@ -28,17 +28,15 @@
 
 package org.opennms.timeseries.impl.influxdb;
 
+import static org.opennms.timeseries.impl.influxdb.TransformUtil.getIfMatching;
 import static org.opennms.timeseries.impl.influxdb.TransformUtil.metricKeyToInflux;
-import static org.opennms.timeseries.impl.influxdb.TransformUtil.tagValueFromInflux;
 import static org.opennms.timeseries.impl.influxdb.TransformUtil.tagValueToInflux;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -56,8 +54,6 @@ import org.opennms.integration.api.v1.timeseries.Tag;
 import org.opennms.integration.api.v1.timeseries.TimeSeriesFetchRequest;
 import org.opennms.integration.api.v1.timeseries.TimeSeriesStorage;
 import org.opennms.integration.api.v1.timeseries.immutables.ImmutableMetric;
-import org.opennms.integration.api.v1.timeseries.immutables.ImmutableSample;
-import org.opennms.integration.api.v1.timeseries.immutables.ImmutableTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,7 +75,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
 
     private final LoadingCache<Collection<Tag>, List<Metric>> cache = CacheBuilder.newBuilder()
             .maximumSize(1000)
-            .expireAfterWrite(60, TimeUnit.SECONDS)
+            .expireAfterWrite(5, TimeUnit.MINUTES)
             .build(
                     new CacheLoader<Collection<Tag>, List<Metric>>() {
                         public List<Metric> load(final Collection<Tag> tags) throws StorageException {
@@ -148,6 +144,8 @@ public class InfluxdbStorage implements TimeSeriesStorage {
     }
 
     private List<Metric> loadMetrics(Collection<Tag> tags) throws StorageException {
+        // It would be nice if we could retrieve the measurements complete (including the tags) butI haven't found
+        // a way to do it. Therefor we trigger for every metric name another query :-(
         String query = String.format("SHOW MEASUREMENTS WHERE %s", tagsToQuery(tags));
         List<String> seriesNames = extractResults(query);
 
@@ -161,9 +159,9 @@ public class InfluxdbStorage implements TimeSeriesStorage {
     private Metric loadMetric(final String metricKey) throws StorageException {
         final ImmutableMetric.MetricBuilder metric = ImmutableMetric.builder();
 
-        // Extract tags
+        // It would be nice if we could retrieve the tags complete (including the tag values) butI haven't found
+        // a way to do it. Therefor we trigger for every tag key name another query :-(
         final String query = String.format("SHOW TAG KEYS FROM \"%s\" ", metricKey);
-
         List<String> keys = extractResults(query);
 
         for(String rawTagKey : keys) {
@@ -227,23 +225,10 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                 tagValueToInflux(tag.getValue()));
     }
 
-    private Optional<Tag> getIfMatching(final ImmutableMetric.TagType tagType, final String rawTagKey, final String rawTagValue) {
-        // Check if the key starts with the prefix. If so it is an opennms key, if not something InfluxDb specific and
-        // we can ignore it.
-        final String prefix = tagType.name() + '_';
-
-        if(rawTagKey.startsWith(prefix)) {
-            String key = rawTagKey.substring(prefix.length());
-            String value = tagValueFromInflux(rawTagValue); // convert
-            return Optional.of(new ImmutableTag(key, value));
-        }
-        return Optional.empty();
-    }
-
     @Override
     public List<Sample> getTimeseries(TimeSeriesFetchRequest request) throws StorageException {
 
-        String query = String.format("SELECT time, value FROM \"%s\"", metricKeyToInflux(request.getMetric().getKey()));
+        String query = String.format("SELECT * FROM \"%s\"", metricKeyToInflux(request.getMetric().getKey()));
         QueryResult result = this.influxDb.query(new Query(query));
 
         if(result.hasError()) { // TODO: Patrick remove new Exception once we have the constructor StorageException(Exception) available
@@ -257,19 +242,8 @@ public class InfluxdbStorage implements TimeSeriesStorage {
             return Collections.emptyList();
         }
 
-        final List<Sample> samples = new ArrayList<>();
-        for(List<Object> values : results.get(0).getSeries().get(0).getValues()) {
-            String timeString = (String)values.get(0);
-            Instant time = Instant.parse(timeString);
-            Double value =  (Double)values.get(1);
-            Sample sample = ImmutableSample.builder()
-                        .metric(request.getMetric())
-                        .time(time)
-                        .value(value)
-                        .build();
-            samples.add(sample);
-        }
-        return samples;
+        QueryResult.Series series = results.get(0).getSeries().get(0);
+        return new SampleExtractor(series).toSamples() ;
     }
 
     @Override
