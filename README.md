@@ -1,12 +1,14 @@
 # Timeseries Integration InfluxDB Plugin
 
 This plugin exposes an implementation of the TimeSeriesStorage interface.
-It stores the data in a InfluxDB database.
+It stores the data in a InfluxDB 1.x database.
 It can be used in OpenNMS to store and retrieve timeseries data.
 
+For the InfluxDB 2.0 plugin, see here: https://github.com/opennms-forge/timeseries-integration-influxdb/ 
+
 ## Prerequisite
-* A running instance of influxdb must be available.
-* For testing purposes you can run: ``sudo docker run -p 9999:9999 quay.io/influxdb/influxdb:2.0.0-beta --reporting-disabled``
+* A running instance of InfluxDB 1.x must be available.
+* For testing purposes you can run: ``docker run -p 8086:8086 influxdb``
 
 ## Usage
 
@@ -42,5 +44,6 @@ bundle:watch *
 ```
 
 ## Links:
-* InfluxDB 2.0: https://www.influxdata.com/products/influxdb-overview/
+* InfluxDB 1.x client: https://github.com/influxdata/influxdb-java
+* InfluxDB 1.x: https://www.influxdata.com/time-series-platform/
 
