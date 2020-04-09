@@ -1,7 +1,7 @@
 # Timeseries Integration InfluxDB 1.x Plugin
 
 This plugin exposes an implementation of the TimeSeriesStorage interface.
-It stores the data in a InfluxDB 1.x database.
+It stores the data in an InfluxDB 1.x database.
 It can be used in OpenNMS to store and retrieve timeseries data.
 
 For the InfluxDB 2.0 plugin, see here: https://github.com/opennms-forge/timeseries-integration-influxdb/ 
@@ -28,13 +28,13 @@ Initialize InfluxDB with default values:
 opennms-influxdb:init
 ```
 
-Use the create org and bucket:
+Configure (you can omit that if you use the default values):
 ```
 config:edit org.opennms.plugins.influxdb
 property-set url http://localhost:8086
 property-set database opennms
 property-set username root
-property-set password password
+property-set password root
 config:update
 ```
 
