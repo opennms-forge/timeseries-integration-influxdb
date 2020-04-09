@@ -41,11 +41,8 @@
                     <instructions>
                         <Import-Package>*,javax.net,javax.net.ssl,javax.crypto,javax.crypto.spec</Import-Package>
                         <Export-Package>
-                          com.influxdb.client;version="${project.version}",
-                          com.influxdb.client.domain;version="${project.version}",
-                          com.influxdb.client.write;version="${project.version}",
-                          com.influxdb.query;version="${project.version}",
-                          okhttp3;version="${project.version}"
+                          org.influxdb;version="${project.version}",
+                          org.influxdb.dto;version="${project.version}"
                         </Export-Package>
                     </instructions>
                     <unpackBundle>true</unpackBundle>

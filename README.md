@@ -1,4 +1,4 @@
-# Timeseries Integration InfluxDB Plugin
+# Timeseries Integration InfluxDB 1.x Plugin
 
 This plugin exposes an implementation of the TimeSeriesStorage interface.
 It stores the data in a InfluxDB 1.x database.
