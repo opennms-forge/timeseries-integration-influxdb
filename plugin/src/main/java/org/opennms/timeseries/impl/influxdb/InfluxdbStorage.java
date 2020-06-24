@@ -32,6 +32,7 @@ import static org.opennms.timeseries.impl.influxdb.TransformUtil.metricKeyToInfl
 import static org.opennms.timeseries.impl.influxdb.TransformUtil.tagValueFromInflux;
 import static org.opennms.timeseries.impl.influxdb.TransformUtil.tagValueToInflux;
 
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -40,13 +41,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.opennms.integration.api.v1.timeseries.Metric;
 import org.opennms.integration.api.v1.timeseries.Sample;
-import org.opennms.integration.api.v1.timeseries.StorageException;
 import org.opennms.integration.api.v1.timeseries.Tag;
 import org.opennms.integration.api.v1.timeseries.TimeSeriesFetchRequest;
 import org.opennms.integration.api.v1.timeseries.TimeSeriesStorage;
@@ -56,9 +54,6 @@ import org.opennms.integration.api.v1.timeseries.immutables.ImmutableTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 import com.influxdb.client.DeleteApi;
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.InfluxDBClientFactory;
@@ -89,16 +84,6 @@ public class InfluxdbStorage implements TimeSeriesStorage {
     private final String configBucket;
     private final String configOrg;
 
-    private LoadingCache<String, List<Metric>> cache = CacheBuilder.newBuilder()
-            .maximumSize(1000)
-            .expireAfterWrite(60, TimeUnit.SECONDS)
-            .build(
-                    new CacheLoader<String, List<Metric>>() {
-                        public List<Metric> load(final String ignored) throws StorageException {
-                            return loadAllMetrics();
-                        }
-                    });
-
     /** Uses default values for bucket, org, url. */
     public InfluxdbStorage(final String token) {
         this("opennms", "opennms", token, "http://localhost:9999");
@@ -121,7 +106,6 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                 .authenticateToken(token.toCharArray())
                 .build();
         influxDBClient = InfluxDBClientFactory.create(options);
-        // TODO Patrick: do we need to enable batch? How?
 
         // Fetch the APIs once during init, some of these require to be closed
         queryApi = influxDBClient.getQueryApi();
@@ -162,25 +146,16 @@ public class InfluxdbStorage implements TimeSeriesStorage {
     }
 
     @Override
-    public List<Metric> getMetrics(Collection<Tag> tags) throws StorageException {
-        try {
-            return this.cache.get("allMetrics")
-                    .stream()
-                    .filter(metric -> containsAll(metric, tags))
-                    .collect(Collectors.toList());
-        } catch (ExecutionException e) {
-            throw new StorageException(e);
-        }
-    }
+    public List<Metric> getMetrics(Collection<Tag> tags) {
 
-    private List<Metric> loadAllMetrics() throws StorageException {
-        // TODO: Patrick: The code works but is probably not efficient enough, we should optimize this query since
-        // it gets way too much (redundant) data.
-        // I am not sure how - the influx documentation doesn't seem to be up to date / correct:
-        // https://www.influxdata.com/blog/schema-queries-in-ifql/
+        final String tagRestriction = tags
+                .stream()
+                .map(tag -> "(r." + toClassifiedTagKey(Metric.TagType.intrinsic, tag) + "==\"" + tagValueToInflux(tag.getValue())+"\" or r." + toClassifiedTagKey(Metric.TagType.meta, tag) + "==\"" + tagValueToInflux(tag.getValue())+"\")")
+                .collect(Collectors.joining(" and "));
 
         final String query = "from(bucket:\"opennms\")\n" +
                 "  |> range(start:-5y)\n" +
+                "  |> filter(fn: (r) => "+tagRestriction+")" +
                 "  |> keys()";
 
         return queryApi
@@ -195,7 +170,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                 .collect(Collectors.toList());
     }
 
-        /** Restore the metric from the tags we get out of InfluxDb */
+    /** Restore the metric from the tags we get out of InfluxDb */
     private Metric createMetricFromMap(final Map<String, Object> map) {
         ImmutableMetric.MetricBuilder metric = ImmutableMetric.builder();
         for(Map.Entry<String, Object> entry : map.entrySet()) {
@@ -219,25 +194,14 @@ public class InfluxdbStorage implements TimeSeriesStorage {
         return Optional.empty();
     }
 
-    private boolean containsAll(final Metric metric, final Collection<Tag> tags) {
-        for(Tag tag: tags) {
-            if(!metric.getIntrinsicTags().contains(tag) && !metric.getMetaTags().contains(tag)){
-                return false;
-            }
-        }
-        return true;
-    }
-
     @Override
-    public List<Sample> getTimeseries(TimeSeriesFetchRequest request) throws StorageException {
+    public List<Sample> getTimeseries(TimeSeriesFetchRequest request) {
         DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneId.of("UTC"));
 
-        long stepInSeconds = request.getStep().getSeconds();
         String query = "from(bucket:\"" + this.configBucket + "\")\n" +
                 " |> range(start:" + format.format(request.getStart()) + ", stop:" + format.format(request.getEnd()) + ")\n" +
                 " |> filter(fn:(r) => r._measurement == \"" + metricKeyToInflux(request.getMetric().getKey()) + "\")\n" +
                 " |> filter(fn: (r) => r._field == \"value\")";
-               // " |> aggregateWindow(every: " + stepInSeconds +"s,fn: mean)"; // TODO: Patrick: this crashes the whole Indluxdb server
         List<FluxTable> tables = queryApi.query(query);
 
         final List<Sample> samples = new ArrayList<>();
@@ -256,8 +220,11 @@ public class InfluxdbStorage implements TimeSeriesStorage {
     }
 
     @Override
-    public void delete(Metric metric) throws StorageException {
-        DeletePredicateRequest predicate = new DeletePredicateRequest().predicate("_measurement=\"" + metricKeyToInflux(metric.getKey()) + "\"");
+    public void delete(Metric metric) {
+        DeletePredicateRequest predicate = new DeletePredicateRequest()
+                .start(OffsetDateTime.now().minusYears(50))
+                .stop(OffsetDateTime.now().plusYears(50))
+                .predicate("_measurement=\"" + metricKeyToInflux(metric.getKey()) + "\"");
         deleteApi.delete(predicate, configBucket, configOrg);
     }
 }
