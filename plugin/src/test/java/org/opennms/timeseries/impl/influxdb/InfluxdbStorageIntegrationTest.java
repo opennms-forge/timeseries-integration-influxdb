@@ -28,45 +28,48 @@
 
 package org.opennms.timeseries.impl.influxdb;
 
-import java.io.IOException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.io.File;
+import java.time.Duration;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.After;
+import org.junit.ClassRule;
 import org.opennms.integration.api.v1.timeseries.TimeSeriesStorage;
 import org.opennms.timeseries.impl.influxdb.shell.InitInfluxdb;
 import org.opennms.timeseries.plugintest.AbstractStorageIntegrationTest;
+import org.testcontainers.containers.DockerComposeContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 
-public class InfluxdbStorageIT extends AbstractStorageIntegrationTest {
+public class InfluxdbStorageIntegrationTest extends AbstractStorageIntegrationTest {
 
-    protected static InfluxdbStorage storage;
-    protected static Process influxdb;
-    protected static ExecutorService pool = Executors.newSingleThreadExecutor();
+    protected final static int PORT = 9999;
 
-    @BeforeClass
-    public static void setUpOnce() throws IOException, InterruptedException {
-        influxdb = new ProcessBuilder()
-                .command("/usr/bin/bash", "-c", "docker run -p 9999:9999 quay.io/influxdb/influxdb:2.0.0-beta")
-                .redirectErrorStream(true)
-                .inheritIO()
-                .start();
-        Thread.sleep(5000); // wait for docker to start
-        String accessToken = new InitInfluxdb().setupInflux();
-        storage = new InfluxdbStorage(accessToken);
+    protected InfluxdbStorage storage;
+    protected static String accessToken;
+    protected static String host;
+
+
+    @ClassRule
+    public static DockerComposeContainer<?> influxdbDocker = createContainer();
+
+    public static DockerComposeContainer<?> createContainer() {
+        DockerComposeContainer<?> influxdbDocker = new DockerComposeContainer<>(new File("src/test/resources/org/opennms/timeseries/impl/influxdb/docker-compose.yaml"))
+                .withExposedService("influxdb", 9999, Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(10)));
+        influxdbDocker.start();
+        accessToken = new InitInfluxdb()
+                .setupInflux();
+        return influxdbDocker;
     }
 
-    @AfterClass
-    public static void tearDown() {
-        if (influxdb != null && influxdb.isAlive()) {
-            influxdb.destroy();
+    @After
+    public void tearDown() {
+        if (storage != null ) {
+            storage.destroy();
         }
-        pool.shutdown();
     }
-
 
     @Override
     protected TimeSeriesStorage createStorage() {
+        storage = new InfluxdbStorage(accessToken);
         return storage;
     }
 

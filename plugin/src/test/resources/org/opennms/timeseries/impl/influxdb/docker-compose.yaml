@@ -1,0 +1,17 @@
+---
+version: '2.4'
+
+volumes:
+  data-influxdb: {}
+
+services:
+
+  influxdb:
+    image: quay.io/influxdb/influxdb:2.0.0-beta
+    healthcheck:
+      test: "influx ping"
+    restart: always
+    ports:
+      - 9999:9999
+    volumes:
+      - data-influxdb:/root/.influxdbv2/

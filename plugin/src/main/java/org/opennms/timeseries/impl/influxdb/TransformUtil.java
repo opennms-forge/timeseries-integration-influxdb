@@ -30,19 +30,11 @@ package org.opennms.timeseries.impl.influxdb;
 
 public class TransformUtil {
 
-    public static String tagValueToInflux(final String resourceId) {
-        return resourceId
-                .replace(':', '/');// Influx has a problem with queries that contain a colon in a query param
-    }
-
-    public static String tagValueFromInflux(final String resourceId) {
-        return resourceId.replace('/', ':'); // Influx has a problem with queries that contain a colon in a query param
-    }
-
     public static String metricKeyToInflux(final String resourceId) {
-        return tagValueToInflux(resourceId)
-                .replace("/", "-")
-                .replace("=", "-");// Influx has a problem with queries that contain a equals in a query param
+        return resourceId
+                // Influx has a problem with '=' this is a bug in the Java client, fixed here:
+                // https://github.com/influxdata/influxdb-client-java/pull/129
+                // we should be able to remove this class once version 1.10.0 is released
+               .replace("=", "-");
     }
-
 }
