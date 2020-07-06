@@ -75,9 +75,15 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.opennms.plugins.timeseries.inmemory</groupId>
-            <artifactId>timeseries-inmemory-plugin</artifactId>
+            <groupId>org.opennms.plugins.tss</groupId>
+            <artifactId>plugin-tests</artifactId>
             <version>1.0.0-SNAPSHOT</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>1.14.3</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

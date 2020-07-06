@@ -29,8 +29,6 @@
 package org.opennms.timeseries.impl.influxdb;
 
 import static org.opennms.timeseries.impl.influxdb.TransformUtil.metricKeyToInflux;
-import static org.opennms.timeseries.impl.influxdb.TransformUtil.tagValueFromInflux;
-import static org.opennms.timeseries.impl.influxdb.TransformUtil.tagValueToInflux;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -75,6 +73,7 @@ import com.influxdb.query.FluxTable;
  */
 public class InfluxdbStorage implements TimeSeriesStorage {
     private static final Logger LOG = LoggerFactory.getLogger(InfluxdbStorage.class);
+    private final static DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneId.of("UTC"));
 
     private final InfluxDBClient influxDBClient;
     private final WriteApi writeApi;
@@ -136,7 +135,6 @@ public class InfluxdbStorage implements TimeSeriesStorage {
     private void storeTags(final Point point, final ImmutableMetric.TagType tagType, final Collection<Tag> tags) {
         for(final Tag tag : tags) {
             String value = tag.getValue();
-            value = tagValueToInflux(value); // Influx has a problem with a colon in a tag value if we query for it
             point.addTag(toClassifiedTagKey(tagType, tag), value);
         }
     }
@@ -150,13 +148,17 @@ public class InfluxdbStorage implements TimeSeriesStorage {
 
         final String tagRestriction = tags
                 .stream()
-                .map(tag -> "(r." + toClassifiedTagKey(Metric.TagType.intrinsic, tag) + "==\"" + tagValueToInflux(tag.getValue())+"\" or r." + toClassifiedTagKey(Metric.TagType.meta, tag) + "==\"" + tagValueToInflux(tag.getValue())+"\")")
+                .map(tag -> "(r[\"" + toClassifiedTagKey(Metric.TagType.intrinsic, tag) + "\"]==\""
+                        + tag.getValue()
+                        +"\" or r[\"" + toClassifiedTagKey(Metric.TagType.meta, tag) + "\"]==\""
+                        + tag.getValue()
+                        +"\")")
                 .collect(Collectors.joining(" and "));
 
         final String query = "from(bucket:\"opennms\")\n" +
                 "  |> range(start:-5y)\n" +
-                "  |> filter(fn: (r) => "+tagRestriction+")" +
-                "  |> keys()";
+                "  |> filter(fn: (r) => "+tagRestriction+")\n" +
+                "  |> distinct(column: \"_measurement\")\n";
 
         return queryApi
                 .query(query)
@@ -166,8 +168,46 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                 .map(FluxRecord::getValues)
                 .filter(m -> m.get("_measurement") != null && m.get("_measurement").toString().contains("resourceId"))
                 .map(this::createMetricFromMap)
-                .distinct()
+                .distinct() // shouldn't be necessary but just in case
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Sample> getTimeseries(TimeSeriesFetchRequest request) {
+
+        String query = "from(bucket:\"" + this.configBucket + "\")\n" +
+                " |> range(start:" + DATE_TIME_FORMAT.format(request.getStart()) + ", stop:" + DATE_TIME_FORMAT.format(request.getEnd()) + ")\n" +
+                " |> filter(fn:(r) => r._measurement == \"" + metricKeyToInflux(request.getMetric().getKey()) + "\")\n" +
+                " |> filter(fn: (r) => r._field == \"value\")";
+        List<FluxTable> tables = queryApi.query(query);
+
+        final List<Sample> samples = new ArrayList<>();
+        for (FluxTable fluxTable : tables) {
+            List<FluxRecord> records = fluxTable.getRecords();
+            Metric metric = null;
+            for (FluxRecord record : records) {
+                if(metric == null) {
+                    // we assume here that the metric is always the same. Therefor we create it only once and not for every record
+                    metric = createMetricFromMap(record.getValues());
+                }
+                Sample sample = ImmutableSample.builder()
+                        .metric(metric)
+                        .time(record.getTime())
+                        .value((Double)record.getValue())
+                        .build();
+                samples.add(sample);
+            }
+        }
+        return samples;
+    }
+
+    @Override
+    public void delete(Metric metric) {
+        DeletePredicateRequest predicate = new DeletePredicateRequest()
+                .start(OffsetDateTime.now().minusYears(50))
+                .stop(OffsetDateTime.now().plusYears(50))
+                .predicate("_measurement=\"" + metricKeyToInflux(metric.getKey()) + "\"");
+        deleteApi.delete(predicate, configBucket, configOrg);
     }
 
     /** Restore the metric from the tags we get out of InfluxDb */
@@ -188,43 +228,9 @@ public class InfluxdbStorage implements TimeSeriesStorage {
 
         if(key.startsWith(prefix)) {
             key = key.substring(prefix.length());
-            String value = tagValueFromInflux(entry.getValue().toString()); // convert
+            String value = entry.getValue().toString(); // tagValueFromInflux(entry.getValue().toString()); // convert
             return Optional.of(new ImmutableTag(key, value));
         }
         return Optional.empty();
-    }
-
-    @Override
-    public List<Sample> getTimeseries(TimeSeriesFetchRequest request) {
-        DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneId.of("UTC"));
-
-        String query = "from(bucket:\"" + this.configBucket + "\")\n" +
-                " |> range(start:" + format.format(request.getStart()) + ", stop:" + format.format(request.getEnd()) + ")\n" +
-                " |> filter(fn:(r) => r._measurement == \"" + metricKeyToInflux(request.getMetric().getKey()) + "\")\n" +
-                " |> filter(fn: (r) => r._field == \"value\")";
-        List<FluxTable> tables = queryApi.query(query);
-
-        final List<Sample> samples = new ArrayList<>();
-        for (FluxTable fluxTable : tables) {
-            List<FluxRecord> records = fluxTable.getRecords();
-            for (FluxRecord record : records) {
-                Sample sample = ImmutableSample.builder()
-                        .metric(request.getMetric())
-                        .time(record.getTime())
-                        .value((Double)record.getValue())
-                        .build();
-                samples.add(sample);
-            }
-        }
-        return samples;
-    }
-
-    @Override
-    public void delete(Metric metric) {
-        DeletePredicateRequest predicate = new DeletePredicateRequest()
-                .start(OffsetDateTime.now().minusYears(50))
-                .stop(OffsetDateTime.now().plusYears(50))
-                .predicate("_measurement=\"" + metricKeyToInflux(metric.getKey()) + "\"");
-        deleteApi.delete(predicate, configBucket, configOrg);
     }
 }
