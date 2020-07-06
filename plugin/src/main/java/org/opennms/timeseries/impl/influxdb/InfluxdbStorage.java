@@ -158,8 +158,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
         final String query = "from(bucket:\"opennms\")\n" +
                 "  |> range(start:-5y)\n" +
                 "  |> filter(fn: (r) => "+tagRestriction+")\n" +
-                "  |> group(columns: [\"_measurement\"])" +
-                "  |> group(columns: [\"intrinsic_name\", \"intrinsic_resourceId\"])";
+                "  |> distinct(column: \"_measurement\")\n";
 
         return queryApi
                 .query(query)
@@ -169,7 +168,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                 .map(FluxRecord::getValues)
                 .filter(m -> m.get("_measurement") != null && m.get("_measurement").toString().contains("resourceId"))
                 .map(this::createMetricFromMap)
-                .distinct()
+                .distinct() // shouldn't be necessary but just in case
                 .collect(Collectors.toList());
     }
 
