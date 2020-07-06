@@ -10,12 +10,6 @@ It can be used in OpenNMS to store and retrieve timeseries data.
 
 ## Usage
 
-Your need to build `https://github.com/opennms-forge/timeseries-integration-inmemory`
-since it is a dependency.
-```
-mvn clean install
-```
-
 Build and install the plugin into your local Maven repository using:
 ```
 mvn clean install
