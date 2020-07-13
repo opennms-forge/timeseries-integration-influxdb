@@ -33,9 +33,9 @@ import java.time.Duration;
 
 import org.junit.After;
 import org.junit.ClassRule;
+import org.opennms.integration.api.v1.timeseries.AbstractStorageIntegrationTest;
 import org.opennms.integration.api.v1.timeseries.TimeSeriesStorage;
 import org.opennms.timeseries.impl.influxdb.shell.InitInfluxdb;
-import org.opennms.timeseries.plugintest.AbstractStorageIntegrationTest;
 import org.testcontainers.containers.DockerComposeContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 
