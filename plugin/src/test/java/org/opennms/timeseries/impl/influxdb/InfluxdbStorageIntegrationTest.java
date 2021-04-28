@@ -41,7 +41,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 
 public class InfluxdbStorageIntegrationTest extends AbstractStorageIntegrationTest {
 
-    protected final static int PORT = 9999;
+    protected final static int PORT = 8086;
 
     protected InfluxdbStorage storage;
     protected static String accessToken;
@@ -53,7 +53,7 @@ public class InfluxdbStorageIntegrationTest extends AbstractStorageIntegrationTe
 
     public static DockerComposeContainer<?> createContainer() {
         DockerComposeContainer<?> influxdbDocker = new DockerComposeContainer<>(new File("src/test/resources/org/opennms/timeseries/impl/influxdb/docker-compose.yaml"))
-                .withExposedService("influxdb", 9999, Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(10)));
+                .withExposedService("influxdb", PORT, Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(15)));
         influxdbDocker.start();
         accessToken = new InitInfluxdb()
                 .setupInflux();

@@ -85,7 +85,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
 
     /** Uses default values for bucket, org, url. */
     public InfluxdbStorage(final String token) {
-        this("opennms", "opennms", token, "http://localhost:9999");
+        this("opennms", "opennms", token, "http://localhost:8086");
     }
 
     public InfluxdbStorage(
@@ -187,7 +187,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
             Metric metric = null;
             for (FluxRecord record : records) {
                 if(metric == null) {
-                    // we assume here that the metric is always the same. Therefor we create it only once and not for every record
+                    // we assume here that the metric is always the same. Therefore we create it only once and not for every record
                     metric = createMetricFromMap(record.getValues());
                 }
                 Sample sample = ImmutableSample.builder()
