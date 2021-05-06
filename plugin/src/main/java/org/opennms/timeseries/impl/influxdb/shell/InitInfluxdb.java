@@ -23,8 +23,8 @@ public class InitInfluxdb implements Action {
     @Option(name = "-o", aliases = {"--organization"}, description = "Specifies which organization to create, default: opennms.")
     private String configOrg = "opennms";
 
-    @Option(name = "-l", aliases = {"--link"}, description = "The url to InfluxDB, default: opennms.")
-    private String configUrl = "http://localhost:9999";
+    @Option(name = "-l", aliases = {"--link"}, description = "The url to InfluxDB, default: http://localhost:8086.")
+    private String configUrl = "http://localhost:8086";
 
     @Option(name = "-u", aliases = {"--user"}, description = "The user name for InfluxDB, default: opennms.")
     private String configUser = "opennms";

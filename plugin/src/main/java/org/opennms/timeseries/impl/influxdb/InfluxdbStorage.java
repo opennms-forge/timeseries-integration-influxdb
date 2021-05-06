@@ -41,6 +41,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.opennms.integration.api.v1.timeseries.IntrinsicTagNames;
 import org.opennms.integration.api.v1.timeseries.Metric;
 import org.opennms.integration.api.v1.timeseries.Sample;
 import org.opennms.integration.api.v1.timeseries.Tag;
@@ -74,6 +75,8 @@ import com.influxdb.query.FluxTable;
 public class InfluxdbStorage implements TimeSeriesStorage {
     private static final Logger LOG = LoggerFactory.getLogger(InfluxdbStorage.class);
     private final static DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneId.of("UTC"));
+    private final static String TAG_RESOURCE_ID = Metric.TagType.intrinsic.name() + "_" + IntrinsicTagNames.resourceId;
+    private final static String TAG_NAME = Metric.TagType.intrinsic.name() + "_" + IntrinsicTagNames.name;
 
     private final InfluxDBClient influxDBClient;
     private final WriteApi writeApi;
@@ -85,7 +88,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
 
     /** Uses default values for bucket, org, url. */
     public InfluxdbStorage(final String token) {
-        this("opennms", "opennms", token, "http://localhost:9999");
+        this("opennms", "opennms", token, "http://localhost:8086");
     }
 
     public InfluxdbStorage(
@@ -123,7 +126,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
     public void store(List<Sample> samples) {
         for(Sample sample: samples) {
             Point point = Point
-                    .measurement(metricKeyToInflux(sample.getMetric().getKey())) // make sure the measurement has only allowed characters
+                    .measurement(metricKeyToInflux(sample.getMetric().getFirstTagByKey(IntrinsicTagNames.name).getValue()))
                     .addField("value", sample.getValue())
                     .time(sample.getTime().toEpochMilli(), WritePrecision.MS);
             storeTags(point, ImmutableMetric.TagType.intrinsic, sample.getMetric().getIntrinsicTags());
@@ -166,7 +169,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                 .map(FluxTable::getRecords)
                 .flatMap(Collection::stream)
                 .map(FluxRecord::getValues)
-                .filter(m -> m.get("_measurement") != null && m.get("_measurement").toString().contains("resourceId"))
+                .filter(m -> m.containsKey(TAG_RESOURCE_ID)) // one of "ours"
                 .map(this::createMetricFromMap)
                 .distinct() // shouldn't be necessary but just in case
                 .collect(Collectors.toList());
@@ -177,8 +180,9 @@ public class InfluxdbStorage implements TimeSeriesStorage {
 
         String query = "from(bucket:\"" + this.configBucket + "\")\n" +
                 " |> range(start:" + DATE_TIME_FORMAT.format(request.getStart()) + ", stop:" + DATE_TIME_FORMAT.format(request.getEnd()) + ")\n" +
-                " |> filter(fn:(r) => r._measurement == \"" + metricKeyToInflux(request.getMetric().getKey()) + "\")\n" +
-                " |> filter(fn: (r) => r._field == \"value\")";
+                " |> filter(fn:(r) => r[\"intrinsic_name\"]==\"" + request.getMetric().getFirstTagByKey(IntrinsicTagNames.name).getValue()  + "\" and\n " +
+                "                     r[\"intrinsic_resourceId\"]==\"" + request.getMetric().getFirstTagByKey(IntrinsicTagNames.resourceId).getValue() + "\")\n" +
+                " |> filter(fn:(r) => r._field == \"value\")";
         List<FluxTable> tables = queryApi.query(query);
 
         final List<Sample> samples = new ArrayList<>();
@@ -187,7 +191,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
             Metric metric = null;
             for (FluxRecord record : records) {
                 if(metric == null) {
-                    // we assume here that the metric is always the same. Therefor we create it only once and not for every record
+                    // we assume here that the metric is always the same. Therefore we create it only once and not for every record
                     metric = createMetricFromMap(record.getValues());
                 }
                 Sample sample = ImmutableSample.builder()
@@ -203,10 +207,12 @@ public class InfluxdbStorage implements TimeSeriesStorage {
 
     @Override
     public void delete(Metric metric) {
+        // this doesnt seem to work, see https://github.com/influxdata/influxdb/issues/20399
         DeletePredicateRequest predicate = new DeletePredicateRequest()
                 .start(OffsetDateTime.now().minusYears(50))
                 .stop(OffsetDateTime.now().plusYears(50))
-                .predicate("_measurement=\"" + metricKeyToInflux(metric.getKey()) + "\"");
+                .predicate(TAG_RESOURCE_ID + "=\"" + metric.getFirstTagByKey(IntrinsicTagNames.resourceId).getValue() + "\"")
+                .predicate(TAG_NAME + "=\"" + metric.getFirstTagByKey(IntrinsicTagNames.resourceId).getValue() + "\"");
         deleteApi.delete(predicate, configBucket, configOrg);
     }
 
