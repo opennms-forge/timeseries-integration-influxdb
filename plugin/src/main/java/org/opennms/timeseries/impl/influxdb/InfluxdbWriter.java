@@ -92,15 +92,12 @@ public class InfluxdbWriter {
     }
 
     public CompletableFuture<Void> writeAsync(List<Point> points) {
-
         String bodyContent = points
                 .stream()
                 .map(Point::toLineProtocol)
                 .collect(Collectors.joining("\n"));
 
-
         final CompletableFuture<Void> future = new CompletableFuture<>();
-
 
         final byte[] compressed;
         try {
@@ -109,7 +106,7 @@ public class InfluxdbWriter {
             future.completeExceptionally(e);
             return future;
         }
-        final RequestBody body = RequestBody.create(bodyContent.getBytes(StandardCharsets.UTF_8));
+        final RequestBody body = RequestBody.create(compressed);
 
 
         // TODO: Patrick make URL composition nicer
@@ -122,7 +119,7 @@ public class InfluxdbWriter {
 
         final Request request = new Request.Builder()
                 .url(url)
-                .addHeader("Content-Encoding", "identity")
+                .addHeader("Content-Encoding", "gzip")
                 .addHeader("Content-Type", "text/plain; charset=utf-8")
                 .addHeader("User-Agent", InfluxdbWriter.class.getCanonicalName())
                 .addHeader("Accept", "application/json")
