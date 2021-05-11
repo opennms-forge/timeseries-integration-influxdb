@@ -42,7 +42,7 @@ import org.opennms.timeseries.impl.influxdb.shell.InitInfluxdb;
 import org.testcontainers.containers.DockerComposeContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 
-public class InfluxdbStorageIntegrationTest extends AbstractStorageIntegrationTest {
+public abstract class AbstractInfluxdbStorageIntegrationTest extends AbstractStorageIntegrationTest {
 
     protected final static int PORT = 8086;
 
@@ -70,10 +70,15 @@ public class InfluxdbStorageIntegrationTest extends AbstractStorageIntegrationTe
 
     @Override
     protected TimeSeriesStorage createStorage() {
-        InfluxdbConfig config = InfluxdbConfig.builder().token(accessToken).build();
+        InfluxdbConfig config = InfluxdbConfig.builder()
+                .token(accessToken)
+                .writeStrategy(getWriteStrategy())
+                .build();
         storage = new InfluxdbStorage(config);
         return storage;
     }
+
+    protected abstract InfluxdbConfig.WriteStrategy getWriteStrategy();
 
     @Override
     protected void waitForPersistingChanges(){

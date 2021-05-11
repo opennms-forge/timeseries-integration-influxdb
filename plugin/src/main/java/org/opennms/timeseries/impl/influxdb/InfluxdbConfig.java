@@ -8,18 +8,22 @@ public class InfluxdbConfig {
     private final String org;
     private final String token;
     private final String url;
-    private final boolean allowBackpressure;
+    private final WriteStrategy writeStrategy;
     private final int maxConcurrentHttpConnections;
     private final long writeTimeoutInMs;
     private final long readTimeoutInMs;
     private final long bulkheadMaxWaitDurationInMs;
+
+    public enum WriteStrategy {
+        nonblocking, blocking, opennms;
+    }
 
     public InfluxdbConfig(Builder builder) {
         this.bucket = Objects.requireNonNull(builder.bucket);
         this.org = Objects.requireNonNull(builder.org);
         this.token = Objects.requireNonNull(builder.token);
         this.url = Objects.requireNonNull(builder.url);
-        this.allowBackpressure = builder.allowBackpressure;
+        this.writeStrategy = builder.writeStrategy;
         this.maxConcurrentHttpConnections = builder.maxConcurrentHttpConnections;
         this.writeTimeoutInMs = builder.writeTimeoutInMs;
         this.readTimeoutInMs = builder.readTimeoutInMs;
@@ -32,7 +36,7 @@ public class InfluxdbConfig {
             final String org,
             final String token,
             final String url,
-            final boolean allowBackpressure,
+            final String writeStrategy,
             final int maxConcurrentHttpConnections,
             final long writeTimeoutInMs,
             final long readTimeoutInMs,
@@ -42,7 +46,7 @@ public class InfluxdbConfig {
                 .org(org)
                 .token(token)
                 .url(url)
-                .allowBackpressure(allowBackpressure)
+                .writeStrategy(WriteStrategy.valueOf(writeStrategy))
                 .maxConcurrentHttpConnections(maxConcurrentHttpConnections)
                 .writeTimeoutInMs(writeTimeoutInMs)
                 .readTimeoutInMs(readTimeoutInMs)
@@ -65,8 +69,8 @@ public class InfluxdbConfig {
         return url;
     }
 
-    public boolean isAllowBackpressure() {
-        return allowBackpressure;
+    public WriteStrategy getWriteStrategy() {
+        return writeStrategy;
     }
 
     public int getMaxConcurrentHttpConnections() {
@@ -92,7 +96,7 @@ public class InfluxdbConfig {
                 .add("org='" + org + "'")
                 .add("token='" + token + "'")
                 .add("url='" + url + "'")
-                .add("allowBackpressure=" + allowBackpressure)
+                .add("writeStrategy=" + writeStrategy)
                 .add("maxConcurrentHttpConnections=" + maxConcurrentHttpConnections)
                 .add("writeTimeoutInMs=" + writeTimeoutInMs)
                 .add("readTimeoutInMs=" + readTimeoutInMs)
@@ -110,7 +114,7 @@ public class InfluxdbConfig {
         private String org = "opennms";
         private String token = null;
         private String url = "http://localhost:8086";
-        private boolean allowBackpressure = true;
+        private WriteStrategy writeStrategy = WriteStrategy.nonblocking;
 
         private int maxConcurrentHttpConnections = 100;
         private long writeTimeoutInMs = 1000;
@@ -132,8 +136,8 @@ public class InfluxdbConfig {
             return this;
         }
 
-        public Builder allowBackpressure(final boolean allowBackpressure) {
-            this.allowBackpressure = allowBackpressure;
+        public Builder writeStrategy(final WriteStrategy writeStrategy) {
+            this.writeStrategy = writeStrategy;
             return this;
         }
 

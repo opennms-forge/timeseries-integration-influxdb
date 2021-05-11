@@ -38,6 +38,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import org.opennms.integration.api.v1.timeseries.IntrinsicTagNames;
@@ -58,6 +59,7 @@ import com.influxdb.client.InfluxDBClientFactory;
 import com.influxdb.client.InfluxDBClientOptions;
 import com.influxdb.client.QueryApi;
 import com.influxdb.client.WriteApi;
+import com.influxdb.client.WriteApiBlocking;
 import com.influxdb.client.domain.DeletePredicateRequest;
 import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
@@ -79,10 +81,9 @@ public class InfluxdbStorage implements TimeSeriesStorage {
 
     private final InfluxdbConfig config;
     private final InfluxDBClient influxDBClient;
-    private final WriteApi writeApi;
+    private final WriterWrapper writeApi;
     private final QueryApi queryApi;
     private final DeleteApi deleteApi;
-    private final InfluxdbWriter writer;
 
     public InfluxdbStorage(final InfluxdbConfig config) {
         this.config = config;
@@ -97,9 +98,23 @@ public class InfluxdbStorage implements TimeSeriesStorage {
 
         // Fetch the APIs once during init, some of these require to be closed
         queryApi = influxDBClient.getQueryApi();
-        writeApi = influxDBClient.getWriteApi();
         deleteApi = influxDBClient.getDeleteApi();
-        writer = new InfluxdbWriter(this.config);
+
+        this.writeApi = new WriterWrapper();
+        if (InfluxdbConfig.WriteStrategy.blocking == config.getWriteStrategy()) {
+            WriteApiBlocking w = influxDBClient.getWriteApiBlocking();
+            this.writeApi.setWriter(w::writePoints);
+            this.writeApi.setCloser(() -> {}); // do nothing
+        } else if (InfluxdbConfig.WriteStrategy.opennms == config.getWriteStrategy()) {
+            InfluxdbWriter w = new InfluxdbWriter(config);
+            this.writeApi.setWriter(w::writePoints);
+            this.writeApi.setCloser(() -> {}); // do nothing
+        } else {
+            WriteApi w = influxDBClient.getWriteApi();
+            this.writeApi.setWriter(w::writePoints);
+            this.writeApi.setCloser(w::close);
+        }
+
         LOG.info("Successfully initialized InfluxDB client.");
     }
 
@@ -120,13 +135,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
             storeTags(point, ImmutableMetric.TagType.meta, sample.getMetric().getMetaTags());
             points.add(point);
         }
-
-        // TODO: Patrick should InfluxdbWriter implement WriteApi?
-        if (this.config.isAllowBackpressure()) {
-            writer.writePoints(points);
-        } else {
-            writeApi.writePoints(points);
-        }
+        writeApi.writePoints(points);
     }
 
     private void storeTags(final Point point, final ImmutableMetric.TagType tagType, final Collection<Tag> tags) {
@@ -234,5 +243,28 @@ public class InfluxdbStorage implements TimeSeriesStorage {
             return Optional.of(new ImmutableTag(key, value));
         }
         return Optional.empty();
+    }
+
+    /** We need to wrap the different write apis since they don't share a common interface.  */
+    static class WriterWrapper {
+
+        private Consumer<List<Point>> writer;
+        private Runnable closer;
+
+        public void setWriter(Consumer<List<Point>> writer) {
+            this.writer = writer;
+        }
+
+        public void setCloser(Runnable closer) {
+            this.closer = closer;
+        }
+
+        public void writePoints(List<Point> points) {
+            this.writer.accept(points);
+        }
+
+        public void close() {
+            this.closer.run();
+        }
     }
 }
