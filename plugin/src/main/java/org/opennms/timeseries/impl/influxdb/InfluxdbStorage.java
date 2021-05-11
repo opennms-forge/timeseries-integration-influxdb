@@ -37,7 +37,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -67,7 +66,7 @@ import com.influxdb.query.FluxTable;
 
 /**
  * Implementation of TimeSeriesStorage that uses InfluxdbStorage.
- *
+ * <p>
  * Design choices:
  * - we fill the _measurement column with the Metrics key
  * - we prefix the tag key with the tag type ('intrinsic' or 'meta')
@@ -78,34 +77,21 @@ public class InfluxdbStorage implements TimeSeriesStorage {
     private final static String TAG_RESOURCE_ID = Metric.TagType.intrinsic.name() + "_" + IntrinsicTagNames.resourceId;
     private final static String TAG_NAME = Metric.TagType.intrinsic.name() + "_" + IntrinsicTagNames.name;
 
+    private final InfluxdbConfig config;
     private final InfluxDBClient influxDBClient;
     private final WriteApi writeApi;
     private final QueryApi queryApi;
     private final DeleteApi deleteApi;
+    private final InfluxdbWriter writer;
 
-    private final String configBucket;
-    private final String configOrg;
-
-    /** Uses default values for bucket, org, url. */
-    public InfluxdbStorage(final String token) {
-        this("opennms", "opennms", token, "http://localhost:8086");
-    }
-
-    public InfluxdbStorage(
-            String bucket,
-            String org,
-            String token,
-            String url) {
-        this.configBucket = Objects.requireNonNull(bucket, "Parameter influxdbBucket cannot be null");
-        this.configOrg = Objects.requireNonNull(org, "Parameter influxdbOrg cannot be null");
-        Objects.requireNonNull(org, "Parameter influxdbToken cannot be null");
-        Objects.requireNonNull(org, "Parameter influxdbUrl cannot be null");
+    public InfluxdbStorage(final InfluxdbConfig config) {
+        this.config = config;
 
         InfluxDBClientOptions options = InfluxDBClientOptions.builder()
-                .bucket(configBucket)
-                .org(configOrg)
-                .url(url)
-                .authenticateToken(token.toCharArray())
+                .bucket(config.getBucket())
+                .org(config.getOrg())
+                .url(config.getUrl())
+                .authenticateToken(config.getToken().toCharArray())
                 .build();
         influxDBClient = InfluxDBClientFactory.create(options);
 
@@ -113,7 +99,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
         queryApi = influxDBClient.getQueryApi();
         writeApi = influxDBClient.getWriteApi();
         deleteApi = influxDBClient.getDeleteApi();
-
+        writer = new InfluxdbWriter(this.config);
         LOG.info("Successfully initialized InfluxDB client.");
     }
 
@@ -124,26 +110,34 @@ public class InfluxdbStorage implements TimeSeriesStorage {
 
     @Override
     public void store(List<Sample> samples) {
-        for(Sample sample: samples) {
+        List<Point> points = new ArrayList<>(samples.size());
+        for (Sample sample : samples) {
             Point point = Point
                     .measurement(metricKeyToInflux(sample.getMetric().getFirstTagByKey(IntrinsicTagNames.name).getValue()))
                     .addField("value", sample.getValue())
                     .time(sample.getTime().toEpochMilli(), WritePrecision.MS);
             storeTags(point, ImmutableMetric.TagType.intrinsic, sample.getMetric().getIntrinsicTags());
             storeTags(point, ImmutableMetric.TagType.meta, sample.getMetric().getMetaTags());
-            writeApi.writePoint(configBucket, configOrg, point);
+            points.add(point);
+        }
+
+        // TODO: Patrick should InfluxdbWriter implement WriteApi?
+        if (this.config.isAllowBackpressure()) {
+            writer.writePoints(points);
+        } else {
+            writeApi.writePoints(points);
         }
     }
 
     private void storeTags(final Point point, final ImmutableMetric.TagType tagType, final Collection<Tag> tags) {
-        for(final Tag tag : tags) {
+        for (final Tag tag : tags) {
             String value = tag.getValue();
             point.addTag(toClassifiedTagKey(tagType, tag), value);
         }
     }
 
     private String toClassifiedTagKey(final ImmutableMetric.TagType tagType, final Tag tag) {
-         return tagType.name() + "_" + tag.getKey();
+        return tagType.name() + "_" + tag.getKey();
     }
 
     @Override
@@ -153,14 +147,14 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                 .stream()
                 .map(tag -> "(r[\"" + toClassifiedTagKey(Metric.TagType.intrinsic, tag) + "\"]==\""
                         + tag.getValue()
-                        +"\" or r[\"" + toClassifiedTagKey(Metric.TagType.meta, tag) + "\"]==\""
+                        + "\" or r[\"" + toClassifiedTagKey(Metric.TagType.meta, tag) + "\"]==\""
                         + tag.getValue()
-                        +"\")")
+                        + "\")")
                 .collect(Collectors.joining(" and "));
 
         final String query = "from(bucket:\"opennms\")\n" +
                 "  |> range(start:-5y)\n" +
-                "  |> filter(fn: (r) => "+tagRestriction+")\n" +
+                "  |> filter(fn: (r) => " + tagRestriction + ")\n" +
                 "  |> distinct(column: \"_measurement\")\n";
 
         return queryApi
@@ -178,9 +172,9 @@ public class InfluxdbStorage implements TimeSeriesStorage {
     @Override
     public List<Sample> getTimeseries(TimeSeriesFetchRequest request) {
 
-        String query = "from(bucket:\"" + this.configBucket + "\")\n" +
+        String query = "from(bucket:\"" + this.config.getBucket() + "\")\n" +
                 " |> range(start:" + DATE_TIME_FORMAT.format(request.getStart()) + ", stop:" + DATE_TIME_FORMAT.format(request.getEnd()) + ")\n" +
-                " |> filter(fn:(r) => r[\"intrinsic_name\"]==\"" + request.getMetric().getFirstTagByKey(IntrinsicTagNames.name).getValue()  + "\" and\n " +
+                " |> filter(fn:(r) => r[\"intrinsic_name\"]==\"" + request.getMetric().getFirstTagByKey(IntrinsicTagNames.name).getValue() + "\" and\n " +
                 "                     r[\"intrinsic_resourceId\"]==\"" + request.getMetric().getFirstTagByKey(IntrinsicTagNames.resourceId).getValue() + "\")\n" +
                 " |> filter(fn:(r) => r._field == \"value\")";
         List<FluxTable> tables = queryApi.query(query);
@@ -190,14 +184,14 @@ public class InfluxdbStorage implements TimeSeriesStorage {
             List<FluxRecord> records = fluxTable.getRecords();
             Metric metric = null;
             for (FluxRecord record : records) {
-                if(metric == null) {
+                if (metric == null) {
                     // we assume here that the metric is always the same. Therefore we create it only once and not for every record
                     metric = createMetricFromMap(record.getValues());
                 }
                 Sample sample = ImmutableSample.builder()
                         .metric(metric)
                         .time(record.getTime())
-                        .value((Double)record.getValue())
+                        .value((Double) record.getValue())
                         .build();
                 samples.add(sample);
             }
@@ -213,13 +207,15 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                 .stop(OffsetDateTime.now().plusYears(50))
                 .predicate(TAG_RESOURCE_ID + "=\"" + metric.getFirstTagByKey(IntrinsicTagNames.resourceId).getValue() + "\"")
                 .predicate(TAG_NAME + "=\"" + metric.getFirstTagByKey(IntrinsicTagNames.resourceId).getValue() + "\"");
-        deleteApi.delete(predicate, configBucket, configOrg);
+        deleteApi.delete(predicate, config.getBucket(), config.getOrg());
     }
 
-    /** Restore the metric from the tags we get out of InfluxDb */
+    /**
+     * Restore the metric from the tags we get out of InfluxDb.
+     */
     private Metric createMetricFromMap(final Map<String, Object> map) {
         ImmutableMetric.MetricBuilder metric = ImmutableMetric.builder();
-        for(Map.Entry<String, Object> entry : map.entrySet()) {
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
             getIfMatching(ImmutableMetric.TagType.intrinsic, entry).ifPresent(metric::intrinsicTag);
             getIfMatching(ImmutableMetric.TagType.meta, entry).ifPresent(metric::metaTag);
         }
@@ -232,7 +228,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
         final String prefix = tagType.name() + '_';
         String key = entry.getKey();
 
-        if(key.startsWith(prefix)) {
+        if (key.startsWith(prefix)) {
             key = key.substring(prefix.length());
             String value = entry.getValue().toString(); // tagValueFromInflux(entry.getValue().toString()); // convert
             return Optional.of(new ImmutableTag(key, value));

@@ -17,10 +17,12 @@
         <junit.version>4.12</junit.version>
         <karaf.version>4.1.5</karaf.version>
         <log4j.version>2.13.3</log4j.version>
+        <metrics.version>4.1.2</metrics.version>
         <mockito.version>2.18.0</mockito.version>
         <opennms.api.version>0.5.2-SNAPSHOT</opennms.api.version>
         <osgi.version>6.0.0</osgi.version>
         <osgi.compendium.version>5.0.0</osgi.compendium.version>
+        <resilience4j.version>1.7.0</resilience4j.version>
         <slf4j-api.version>1.7.25</slf4j-api.version>
     </properties>
 
@@ -63,7 +65,16 @@
                 <artifactId>influxdb-client-java</artifactId>
                 <version>${influxdb.version}</version>
             </dependency>
-
+            <dependency>
+                <groupId>io.dropwizard.metrics</groupId>
+                <artifactId>metrics-core</artifactId>
+                <version>${metrics.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-bulkhead</artifactId>
+                <version>${resilience4j.version}</version>
+            </dependency>
 
             <!-- Test -->
             <dependency>

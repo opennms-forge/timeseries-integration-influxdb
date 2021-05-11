@@ -70,7 +70,8 @@ public class InfluxdbStorageIntegrationTest extends AbstractStorageIntegrationTe
 
     @Override
     protected TimeSeriesStorage createStorage() {
-        storage = new InfluxdbStorage(accessToken);
+        InfluxdbConfig config = InfluxdbConfig.builder().token(accessToken).build();
+        storage = new InfluxdbStorage(config);
         return storage;
     }
 

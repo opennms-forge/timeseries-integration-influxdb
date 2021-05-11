@@ -13,7 +13,7 @@ import com.influxdb.client.domain.OnboardingResponse;
 
 import okhttp3.OkHttpClient;
 
-@Command(scope = "opennms-influxdb", name = "init", description = "Initializes the database tables for the Timeseries Integration Timescale Plugin.")
+@Command(scope = "opennms-influxdb", name = "init", description = "Initializes the org and bucket on a new influxdb installation.")
 @Service
 public class InitInfluxdb implements Action {
 

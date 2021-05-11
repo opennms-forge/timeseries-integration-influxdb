@@ -84,6 +84,7 @@
                             <features>
                                 <feature>opennms-plugins-influxdb</feature>
                                 <feature>opennms-plugins-influxdb-client</feature>
+                                <feature>opennms-plugins-influxdb-resilience4j</feature>
                             </features>
                         </configuration>
                     </execution>

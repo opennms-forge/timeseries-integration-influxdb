@@ -16,6 +16,12 @@
             <cm:property name="org" value="opennms" />
             <cm:property name="token" value="" />
             <cm:property name="url" value="http://localhost:9999" />
+            <cm:property name="allowBackpressure" value="true" />
+            <cm:property name="maxConcurrentHttpConnections" value="100" />
+            <cm:property name="writeTimeoutInMs" value="1000" />
+            <cm:property name="readTimeoutInMs" value="1000" />
+            <cm:property name="metricCacheSize" value="1000" />
+            <cm:property name="bulkheadMaxWaitDuration" value="9223372036854775807" />
         </cm:default-properties>
     </cm:property-placeholder>
 
@@ -24,6 +30,12 @@
         <argument value="${org}" />
         <argument value="${token}" />
         <argument value="${url}" />
+        <argument value="${allowBackpressure}" />
+        <argument value="${maxConcurrentHttpConnections}" />
+        <argument value="${writeTimeoutInMs}" />
+        <argument value="${readTimeoutInMs}" />
+        <argument value="${metricCacheSize}" />
+        <argument value="${bulkheadMaxWaitDuration}" />
     </bean>
 
     <service ref="timeSeriesStorage" interface="org.opennms.integration.api.v1.timeseries.TimeSeriesStorage">
