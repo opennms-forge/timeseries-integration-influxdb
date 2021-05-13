@@ -15,7 +15,7 @@
             <cm:property name="bucket" value="opennms" />
             <cm:property name="org" value="opennms" />
             <cm:property name="token" value="" />
-            <cm:property name="url" value="http://localhost:9999" />
+            <cm:property name="url" value="http://localhost:8086" />
             <cm:property name="writeStrategy" value="nonblocking" />
             <cm:property name="maxConcurrentHttpConnections" value="100" />
             <cm:property name="writeTimeoutInMs" value="1000" />
