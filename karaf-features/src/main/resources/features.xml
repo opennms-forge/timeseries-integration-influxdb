@@ -6,7 +6,9 @@
         <feature dependency="true">shell</feature>
         <feature version="${opennms.api.version}" dependency="true">opennms-integration-api</feature>
         <feature version="${project.version}">opennms-plugins-influxdb-client</feature>
+        <bundle dependency="true">mvn:org.opennms.plugin.timeseries.influxdb.wrap/resilience4j/${project.version}</bundle>
         <bundle dependency="true">mvn:com.google.guava/guava/${guava.version}</bundle>
+        <bundle dependency="true">mvn:io.dropwizard.metrics/metrics-core/${metrics.version}</bundle>
         <bundle>mvn:org.opennms.plugins.timeseries/influxdb-plugin/${project.version}</bundle>
     </feature>
 
