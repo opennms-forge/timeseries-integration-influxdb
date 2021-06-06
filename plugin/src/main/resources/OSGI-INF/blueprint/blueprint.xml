@@ -20,12 +20,11 @@
             <cm:property name="maxConcurrentHttpConnections" value="100" />
             <cm:property name="writeTimeoutInMs" value="1000" />
             <cm:property name="readTimeoutInMs" value="1000" />
-            <cm:property name="metricCacheSize" value="1000" />
             <cm:property name="bulkheadMaxWaitDuration" value="9223372036854775807" />
         </cm:default-properties>
     </cm:property-placeholder>
 
-    <bean id="timeSeriesStorage" class="org.opennms.timeseries.impl.influxdb.InfluxdbStorage" destroy-method="destroy" >
+    <bean id="influxdbConfig" class="org.opennms.timeseries.impl.influxdb.InfluxdbConfig">
         <argument value="${bucket}" />
         <argument value="${org}" />
         <argument value="${token}" />
@@ -34,11 +33,14 @@
         <argument value="${maxConcurrentHttpConnections}" />
         <argument value="${writeTimeoutInMs}" />
         <argument value="${readTimeoutInMs}" />
-        <argument value="${metricCacheSize}" />
         <argument value="${bulkheadMaxWaitDuration}" />
     </bean>
 
-    <service ref="timeSeriesStorage" interface="org.opennms.integration.api.v1.timeseries.TimeSeriesStorage">
+    <bean id="influxdbStorage" class="org.opennms.timeseries.impl.influxdb.InfluxdbStorage" destroy-method="destroy" >
+        <argument ref="influxdbConfig" />
+    </bean>
+
+    <service ref="influxdbStorage" interface="org.opennms.integration.api.v1.timeseries.TimeSeriesStorage">
         <service-properties>
             <entry key="registration.export" value="true" />
         </service-properties>
