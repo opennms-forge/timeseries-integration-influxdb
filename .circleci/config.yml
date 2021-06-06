@@ -11,7 +11,7 @@ executors:
       image: ubuntu-1604:201903-01
 
 workflows:
-  build-deploy:
+  build-test:
     jobs:
       - build
       - tests:
