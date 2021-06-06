@@ -6,7 +6,7 @@ It can be used in OpenNMS to store and retrieve timeseries data.
 
 ## Prerequisite
 * A running instance of influxdb must be available.
-* For testing purposes you can run: ``sudo docker run -p 9999:9999 quay.io/influxdb/influxdb:2.0.0-beta --reporting-disabled``
+* For testing purposes you can run: `docker run -d -p 8086:8086 -v $PWD:/var/lib/influxdb2 influxdb:2.0.7`
 
 ## Usage
 
@@ -23,7 +23,7 @@ feature:install opennms-plugins-influxdb
 
 Initialize InfluxDB with an organization and bucket:
 ```
-opennms-influxdb:init --link http://localhost:9999
+opennms-influxdb:init --link http://localhost:8086
 ```
 
 Use the create org and bucket:
@@ -32,7 +32,7 @@ config:edit org.opennms.plugins.influxdb
 property-set bucket opennms
 property-set org opennms
 property-set token "FSuqxbAXTxgiI-6-KtYFZJZwJDfYpOOOEpgpBdOaX5zLo4MiFvWN4hWFu0kSOtQO-XnyNUWQrsqTrrdHl1BYBg=="
-property-set url http://localhost:9999
+property-set url http://localhost:8086
 config:update
 ```
 
