@@ -1,6 +1,4 @@
-# OpenNMS InfluxDB Time Series Storage (TSS) Plugin [![CircleCI](https://circleci.com/gh/opennms-forge/timeseries-integration-influxdb.svg?style=svg)](https://circleci.com/gh/opennms-forge/timeseries-integration-influxdb)
-
-# Timeseries Integration InfluxDB Plugin
+# OpenNMS InfluxDB Plugin [![CircleCI](https://circleci.com/gh/opennms-forge/timeseries-integration-influxdb.svg?style=svg)](https://circleci.com/gh/opennms-forge/timeseries-integration-influxdb)
 
 This plugin exposes an implementation of the TimeSeriesStorage interface.
 It stores the data in a InfluxDB database.
