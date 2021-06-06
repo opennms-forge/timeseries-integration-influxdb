@@ -10,7 +10,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <guava.version>29.0-jre</guava.version>
+        <guava.version>30.1.1-jre</guava.version>
         <hamcrest.version>1.3</hamcrest.version>
         <influxdb.version>2.1.0</influxdb.version>
         <java.version>1.8</java.version>
