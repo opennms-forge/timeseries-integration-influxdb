@@ -42,7 +42,7 @@ import org.opennms.timeseries.impl.influxdb.shell.InitInfluxdb;
 import org.testcontainers.containers.DockerComposeContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 
-public abstract class AbstractInfluxdbStorageIntegrationTest extends AbstractStorageIntegrationTest {
+public abstract class AbstractInfluxdbStorageIT extends AbstractStorageIntegrationTest {
 
     protected final static int PORT = 8086;
 

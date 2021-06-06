@@ -3,10 +3,10 @@ package org.opennms.timeseries.impl.influxdb;
 import org.junit.Ignore;
 
 @Ignore
-public class NonblockingInfluxdbStorageIntegrationTest extends AbstractInfluxdbStorageIntegrationTest {
+public class BlockingInfluxdbStorageIT extends AbstractInfluxdbStorageIT {
 
     @Override
     protected InfluxdbConfig.WriteStrategy getWriteStrategy() {
-        return InfluxdbConfig.WriteStrategy.nonblocking;
+        return InfluxdbConfig.WriteStrategy.blocking;
     }
 }

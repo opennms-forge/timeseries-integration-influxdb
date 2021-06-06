@@ -1,6 +1,6 @@
 package org.opennms.timeseries.impl.influxdb;
 
-public class OpennmsInfluxdbStorageIntegrationTest extends AbstractInfluxdbStorageIntegrationTest {
+public class OpennmsInfluxdbStorageIT extends AbstractInfluxdbStorageIT {
 
     @Override
     protected InfluxdbConfig.WriteStrategy getWriteStrategy() {
