@@ -32,7 +32,7 @@ import java.io.File;
 import java.time.Duration;
 
 import org.junit.After;
-import org.junit.ClassRule;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.opennms.integration.api.v1.timeseries.AbstractStorageIntegrationTest;
@@ -47,24 +47,27 @@ public abstract class AbstractInfluxdbStorageIT extends AbstractStorageIntegrati
     protected final static int PORT = 8086;
 
     protected InfluxdbStorage storage;
-    protected static String accessToken;
+    protected String accessToken;
 
-    @ClassRule
-    public static DockerComposeContainer<?> influxdbDocker = createContainer();
+    public DockerComposeContainer<?> influxdbDocker;
 
-    public static DockerComposeContainer<?> createContainer() {
-        DockerComposeContainer<?> influxdbDocker = new DockerComposeContainer<>(new File("src/test/resources/org/opennms/timeseries/impl/influxdb/docker-compose.yaml"))
+    @Before
+    public void setUp() throws Exception {
+        influxdbDocker = new DockerComposeContainer<>(new File("src/test/resources/org/opennms/timeseries/impl/influxdb/docker-compose.yaml"))
                 .withExposedService("influxdb", PORT, Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(20)));
         influxdbDocker.start();
         accessToken = new InitInfluxdb()
                 .setupInflux();
-        return influxdbDocker;
+        super.setUp();
     }
 
     @After
     public void tearDown() {
         if (storage != null ) {
             storage.destroy();
+        }
+        if(influxdbDocker != null) {
+            influxdbDocker.stop();
         }
     }
 
