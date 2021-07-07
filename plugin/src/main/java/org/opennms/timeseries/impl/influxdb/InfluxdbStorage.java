@@ -28,6 +28,8 @@
 
 package org.opennms.timeseries.impl.influxdb;
 
+import static org.opennms.integration.api.v1.timeseries.TagMatcher.Type.NOT_EQUALS;
+import static org.opennms.integration.api.v1.timeseries.TagMatcher.Type.NOT_EQUALS_REGEX;
 import static org.opennms.timeseries.impl.influxdb.TransformUtil.metricKeyToInflux;
 
 import java.time.OffsetDateTime;
@@ -37,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -45,6 +48,7 @@ import org.opennms.integration.api.v1.timeseries.IntrinsicTagNames;
 import org.opennms.integration.api.v1.timeseries.Metric;
 import org.opennms.integration.api.v1.timeseries.Sample;
 import org.opennms.integration.api.v1.timeseries.Tag;
+import org.opennms.integration.api.v1.timeseries.TagMatcher;
 import org.opennms.integration.api.v1.timeseries.TimeSeriesFetchRequest;
 import org.opennms.integration.api.v1.timeseries.TimeSeriesStorage;
 import org.opennms.integration.api.v1.timeseries.immutables.ImmutableMetric;
@@ -133,6 +137,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                     .time(sample.getTime().toEpochMilli(), WritePrecision.MS);
             storeTags(point, ImmutableMetric.TagType.intrinsic, sample.getMetric().getIntrinsicTags());
             storeTags(point, ImmutableMetric.TagType.meta, sample.getMetric().getMetaTags());
+            storeTags(point, ImmutableMetric.TagType.external, sample.getMetric().getExternalTags());
             points.add(point);
         }
         writeApi.writePoints(points);
@@ -145,20 +150,25 @@ public class InfluxdbStorage implements TimeSeriesStorage {
         }
     }
 
+    private String toClassifiedTagKey(final ImmutableMetric.TagType tagType, final TagMatcher tag) {
+        return tagType.name() + "_" + tag.getKey();
+    }
+
     private String toClassifiedTagKey(final ImmutableMetric.TagType tagType, final Tag tag) {
         return tagType.name() + "_" + tag.getKey();
     }
 
     @Override
-    public List<Metric> getMetrics(Collection<Tag> tags) {
-
-        final String tagRestriction = tags
+    public List<Metric> findMetrics(Collection<TagMatcher> matchers) {
+        if (matchers.isEmpty()) {
+            throw new IllegalArgumentException("Collection<TagMatcher> can not be empty");
+        }
+        final String tagRestriction = matchers
                 .stream()
-                .map(tag -> "(r[\"" + toClassifiedTagKey(Metric.TagType.intrinsic, tag) + "\"]==\""
-                        + tag.getValue()
-                        + "\" or r[\"" + toClassifiedTagKey(Metric.TagType.meta, tag) + "\"]==\""
-                        + tag.getValue()
-                        + "\")")
+                .map(m -> "(r[\"" + toClassifiedTagKey(Metric.TagType.intrinsic, m) + "\"]" + tagMatcherToComp(m)
+                        + ((NOT_EQUALS == m.getType() || NOT_EQUALS_REGEX == m.getType()) ? "and" : "or")
+                        + " r[\"" + toClassifiedTagKey(Metric.TagType.meta, m) + "\"]" + tagMatcherToComp(m) + ")")
+                        // external tags are not searchable
                 .collect(Collectors.joining(" and "));
 
         final String query = "from(bucket:\"opennms\")\n" +
@@ -176,6 +186,23 @@ public class InfluxdbStorage implements TimeSeriesStorage {
                 .map(this::createMetricFromMap)
                 .distinct() // shouldn't be necessary but just in case
                 .collect(Collectors.toList());
+    }
+
+    private String tagMatcherToComp(final TagMatcher matcher) {
+        // see https://docs.influxdata.com/influxdb/cloud/query-data/flux/regular-expressions/
+        Objects.requireNonNull(matcher);
+        switch (matcher.getType()) {
+            case EQUALS:
+                return "==\""+matcher.getValue()+"\"";
+            case NOT_EQUALS:
+                return "!=\""+matcher.getValue()+"\"";
+            case EQUALS_REGEX:
+                return "=~/"+matcher.getValue()+"/";
+            case NOT_EQUALS_REGEX:
+                return "!~/"+matcher.getValue()+"/";
+            default:
+                throw new IllegalArgumentException("Unknown TagMatcher.Type " + matcher.getType().name());
+        }
     }
 
     @Override
@@ -227,6 +254,7 @@ public class InfluxdbStorage implements TimeSeriesStorage {
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             getIfMatching(ImmutableMetric.TagType.intrinsic, entry).ifPresent(metric::intrinsicTag);
             getIfMatching(ImmutableMetric.TagType.meta, entry).ifPresent(metric::metaTag);
+            getIfMatching(ImmutableMetric.TagType.external, entry).ifPresent(metric::externalTag);
         }
         return metric.build();
     }
